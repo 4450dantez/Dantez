@@ -1,5 +1,5 @@
 module.exports = {
   botName: "Dantez Bot 🤖",
   prefix: ".",
-  ownerNumber: "254XXXXXXXXX", // replace with your number
+  ownerNumber: "254768586061", // your real number
 };
