@@ -1,34 +1,50 @@
-const { Client, LocalAuth } = require('whatsapp-web.js');
-const qrcode = require('qrcode-terminal');
+const { default: makeWASocket, useMultiFileAuthState } = require('@whiskeysockets/baileys');
+const pino = require('pino');
+const readline = require('readline');
 
-// 1. Wake up our robot client
-const client = new Client({
-    authStrategy: new LocalAuth()
-});
+const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+const question = (text) => new Promise((resolve) => rl.question(text, resolve));
 
-// 2. Show a QR code when it's ready to connect
-client.on('qr', (qr) => {
-    qrcode.generate(qr, { small: true });
-    console.log('Scan this QR code with WhatsApp Linked Devices!');
-});
-
-// 3. Let us know when the robot is awake
-client.on('ready', () => {
-    console.log('Beep Boop! Your WhatsApp Bot is ready!');
-});
-
-// 4. Listen for messages!
-client.on('message', async (msg) => {
-    // If someone texts you "!hello"
-    if (msg.body.toLowerCase() === '!hello') {
-        await msg.reply('Hello! I am Dantez, a cool robot built from a phone! 🤖✨');
-    }
+async function startBot() {
+    const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
     
-    // If someone texts you "!ping"
-    if (msg.body.toLowerCase() === '!ping') {
-        await msg.reply('Pong! 🏓');
-    }
-});
+    const sock = makeWASocket({
+        logger: pino({ level: 'silent' }),
+        auth: state,
+        printQRInTerminal: false // No QR code needed!
+    });
 
-client.initialize();
-  
+    // If we aren't logged in yet, ask for your phone number to give you a pairing code!
+    if (!sock.authState.creds.registered) {
+        const phoneNumber = await question('Please enter your WhatsApp phone number with country code (e.g., 254712345678): ');
+        const code = await sock.requestPairingCode(phoneNumber.trim());
+        console.log(`\nYour Pairing Code is: ${code}\n`);
+        console.log('Open WhatsApp -> Linked Devices -> Link with phone number instead, and enter this code!');
+    }
+
+    sock.ev.on('creds.update', saveCreds);
+
+    sock.ev.on('connection.update', (update) => {
+        const { connection } = update;
+        if (connection === 'open') {
+            console.log('Beep Boop! Your WhatsApp Bot is connected and ready! 🤖');
+        }
+    });
+
+    sock.ev.on('messages.upsert', async (m) => {
+        const msg = m.messages[0];
+        if (!msg.message || msg.key.fromMe) return;
+
+        const text = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
+        const from = msg.key.remoteJid;
+
+        if (text.toLowerCase() === '!hello') {
+            await sock.sendMessage(from, { text: 'Hello! I am Dantez, running smoothly on mobile! 🤖✨' });
+        }
+        if (text.toLowerCase() === '!ping') {
+            await sock.sendMessage(from, { text: 'Pong! 🏓' });
+        }
+    });
+}
+
+startBot();
