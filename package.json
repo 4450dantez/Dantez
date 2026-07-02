@@ -1,14 +1,15 @@
 {
   "name": "dantez-whatsapp-bot",
   "version": "1.0.0",
-  "description": "My mobile WhatsApp robot",
+  "description": "Dantez WhatsApp Bot",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-    "@whiskeysockets/baileys": "^6.6.0",
-    "qrcode-terminal": "^0.12.0",
-    "pino": "^8.14.1"
+    "@whiskeysockets/baileys": "^6.7.23",
+    "@hapi/boom": "^10.0.1",
+    "pino": "^8.14.1",
+    "qrcode-terminal": "^0.12.0"
   }
 }
