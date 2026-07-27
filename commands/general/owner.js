@@ -10,7 +10,7 @@ module.exports = {
             const jid = `${num}@s.whatsapp.net`;
             let name = `+${num}`;
 
-            // Try to fetch current WhatsApp username
+            // Fetch current WhatsApp profile name if available
             try {
                 const [result] = await sock.onWhatsApp(jid);
                 if (result && result.notify) {
@@ -30,11 +30,14 @@ module.exports = {
             contactsList.push({ vcard });
         }
 
-        // 1. Send text message
-        const textMessage = `you wanna see my handsome owner, okay here is he 🙂‍↔️\n\n• +254768586061\n• +254754574642`;
-        await sock.sendMessage(from, { text: textMessage }, { quoted: msg });
+        // Send text message first
+        await sock.sendMessage(
+            from, 
+            { text: "you wanna see my handsome owner, okay here is he 🙂‍↔️" }, 
+            { quoted: msg }
+        );
 
-        // 2. Send contact cards
+        // Send vCards
         await sock.sendMessage(
             from,
             {
