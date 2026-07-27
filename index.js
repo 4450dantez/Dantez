@@ -10,6 +10,9 @@ const qrcode = require("qrcode-terminal");
 const readline = require("readline");
 const os = require("os");
 
+// Import the external menu function
+const { getMenu } = require("./menu");
+
 // Helper function to handle terminal input
 function askQuestion(query) {
     const rl = readline.createInterface({
@@ -120,28 +123,8 @@ async function startBot() {
             // ==================== GENERAL COMMANDS ====================
             case "menu":
             case "help": {
-                const menuText = 
-`🤖 *DANTEZ BOT OFFICIAL MENU*
-
-👤 *User:* @${msg.key.participant ? msg.key.participant.split("@")[0] : from.split("@")[0]}
-⚙️ *Prefix:* [ ${prefix} ]
-
-─── 🌐 *GENERAL COMMANDS* ───
-• *${prefix}ping* - Check bot response speed
-• *${prefix}menu* - Display this command menu
-• *${prefix}owner* - Contact bot owner
-• *${prefix}runtime* - Display bot uptime and system specs
-
-─── 🎨 *MEDIA & UTILS* ───
-• *${prefix}sticker* - Convert reply/caption image to sticker
-• *${prefix}say <text>* - Make the bot repeat your text
-• *${prefix}quote* - Get a random inspirational quote
-
-─── 👥 *GROUP COMMANDS* ───
-• *${prefix}tagall* - Mention all group members
-• *${prefix}groupinfo* - Show details about current group
-
-💡 *Tip:* Send *${prefix}sticker* as caption to an image to convert it!`;
+                const userJid = msg.key.participant ? msg.key.participant.split("@")[0] : from.split("@")[0];
+                const menuText = getMenu(prefix, userJid);
 
                 await sock.sendMessage(from, { 
                     text: menuText,
