@@ -8,12 +8,35 @@ const {
 const P = require("pino");
 const qrcode = require("qrcode-terminal");
 const readline = require("readline");
-const os = require("os");
+const fs = require("fs");
+const path = require("path");
 
-// Import the external menu function
-const { getMenu } = require("./menu");
+// Map store to hold dynamic commands
+const commands = new Map();
 
-// Helper function to handle terminal input
+// Helper to recursively read files inside commands/
+function loadCommands(dir = path.join(__dirname, "commands")) {
+    const files = fs.readdirSync(dir);
+
+    for (const file of files) {
+        const filePath = path.join(dir, file);
+        const stat = fs.statSync(filePath);
+
+        if (stat.isDirectory()) {
+            loadCommands(filePath);
+        } else if (file.endsWith(".js")) {
+            const command = require(filePath);
+            if (command.name) {
+                commands.set(command.name.toLowerCase(), command);
+                console.log(`🔹 Loaded command: .${command.name}`);
+            }
+        }
+    }
+}
+
+// Read commands on startup
+loadCommands();
+
 function askQuestion(query) {
     const rl = readline.createInterface({
         input: process.stdin,
@@ -38,7 +61,6 @@ async function startBot() {
 
     sock.ev.on("creds.update", saveCreds);
 
-    // Ask user for connection method if not logged in yet
     if (!sock.authState.creds.registered) {
         const inputPhone = await askQuestion(
             "📱 Enter phone number for Pairing Code (e.g., 254768586061) or press Enter to use QR Code: "
@@ -46,7 +68,6 @@ async function startBot() {
 
         if (inputPhone) {
             const phoneNumber = inputPhone.replace(/[^0-9]/g, "");
-
             setTimeout(async () => {
                 try {
                     const code = await sock.requestPairingCode(phoneNumber);
@@ -60,7 +81,6 @@ async function startBot() {
         }
     }
 
-    // Connection events handler
     sock.ev.on("connection.update", async (update) => {
         const { connection, lastDisconnect, qr } = update;
 
@@ -88,19 +108,14 @@ async function startBot() {
         }
     });
 
-    // Incoming messages handler
     sock.ev.on("messages.upsert", async ({ messages, type }) => {
         if (type !== "notify") return;
 
         const msg = messages[0];
         if (!msg || !msg.message) return;
-
         if (msg.key.remoteJid === "status@broadcast") return;
 
         const from = msg.key.remoteJid;
-        const isGroup = from.endsWith("@g.us");
-
-        // Extract message text across different message types
         const text = (
             msg.message.conversation ||
             msg.message.extendedTextMessage?.text ||
@@ -109,147 +124,22 @@ async function startBot() {
             ""
         ).trim();
 
-        // Separate prefix, command, and args
         const prefix = ".";
         if (!text.startsWith(prefix)) return;
 
         const args = text.slice(prefix.length).trim().split(/ +/);
-        const command = args.shift().toLowerCase();
-        const q = args.join(" "); // Text query after command
+        const cmdName = args.shift().toLowerCase();
 
-        console.log(`📩 [${from}] Executed: ${prefix}${command}`);
+        // Retrieve and execute command file
+        const command = commands.get(cmdName);
+        if (!command) return;
 
-        switch (command) {
-            // ==================== GENERAL COMMANDS ====================
-            case "menu":
-            case "help": {
-                const userJid = msg.key.participant ? msg.key.participant.split("@")[0] : from.split("@")[0];
-                const menuText = getMenu(prefix, userJid);
-
-                await sock.sendMessage(from, { 
-                    text: menuText,
-                    mentions: [msg.key.participant || from]
-                }, { quoted: msg });
-                break;
-            }
-
-            case "ping": {
-                const start = Date.now();
-                const sentMsg = await sock.sendMessage(from, { text: "🏓 Testing speed..." }, { quoted: msg });
-                const end = Date.now();
-                await sock.sendMessage(from, { text: `🏓 *Pong!* Speed: \`${end - start}ms\`` }, { quoted: sentMsg });
-                break;
-            }
-
-            case "owner": {
-                await sock.sendMessage(from, {
-                    text: `👑 *Bot Owner Info*\n\n• Name: Dantez\n• Contact: wa.me/254768586061`
-                }, { quoted: msg });
-                break;
-            }
-
-            case "runtime": {
-                const uptime = process.uptime();
-                const hours = Math.floor(uptime / 3600);
-                const minutes = Math.floor((uptime % 3600) / 60);
-                const seconds = Math.floor(uptime % 60);
-
-                const ramUsage = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
-                const totalRam = (os.totalmem() / 1024 / 1024 / 1024).toFixed(2);
-
-                await sock.sendMessage(from, {
-                    text: `⚙️ *System Stats*\n\n⏱️ *Uptime:* ${hours}h ${minutes}m ${seconds}s\n💾 *RAM Usage:* ${ramUsage} MB / ${totalRam} GB\n🖥️ *OS:* ${os.platform()} (${os.arch()})`
-                }, { quoted: msg });
-                break;
-            }
-
-            case "say": {
-                if (!q) return await sock.sendMessage(from, { text: `❌ Please provide text. Example: *${prefix}say Hello World*` }, { quoted: msg });
-                await sock.sendMessage(from, { text: q }, { quoted: msg });
-                break;
-            }
-
-            case "quote": {
-                const quotes = [
-                    "“The best way to predict the future is to create it.”",
-                    "“Do what you can, with what you have, where you are.”",
-                    "“It always seems impossible until it's done.”",
-                    "“Success is not final, failure is not fatal: it is the courage to continue that counts.”"
-                ];
-                const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
-                await sock.sendMessage(from, { text: `💬 ${randomQuote}` }, { quoted: msg });
-                break;
-            }
-
-            // ==================== MEDIA COMMANDS ====================
-            case "sticker":
-            case "s": {
-                const isImage = msg.message.imageMessage || (msg.message.extendedTextMessage?.contextInfo?.quotedMessage?.imageMessage);
-
-                if (!isImage) {
-                    return await sock.sendMessage(from, { text: `❌ Please send or reply to an image with *${prefix}sticker*` }, { quoted: msg });
-                }
-
-                try {
-                    const targetMessage = msg.message.imageMessage 
-                        ? msg.message.imageMessage 
-                        : msg.message.extendedTextMessage.contextInfo.quotedMessage.imageMessage;
-
-                    const stream = await downloadContentFromMessage(targetMessage, "image");
-                    let buffer = Buffer.from([]);
-                    for await (const chunk of stream) {
-                        buffer = Buffer.concat([buffer, chunk]);
-                    }
-
-                    await sock.sendMessage(from, { sticker: buffer }, { quoted: msg });
-                } catch (err) {
-                    console.log("Sticker Error:", err);
-                    await sock.sendMessage(from, { text: "❌ Failed to generate sticker." }, { quoted: msg });
-                }
-                break;
-            }
-
-            // ==================== GROUP COMMANDS ====================
-            case "tagall": {
-                if (!isGroup) return await sock.sendMessage(from, { text: "❌ This command can only be used in groups!" }, { quoted: msg });
-
-                const groupMetadata = await sock.groupMetadata(from);
-                const participants = groupMetadata.participants;
-
-                let response = `📢 *Attention Everyone!*\n\n📝 *Message:* ${q || "None"}\n\n`;
-                let mentions = [];
-
-                for (let mem of participants) {
-                    response += `• @${mem.id.split("@")[0]}\n`;
-                    mentions.push(mem.id);
-                }
-
-                await sock.sendMessage(from, { text: response, mentions: mentions }, { quoted: msg });
-                break;
-            }
-
-            case "groupinfo": {
-                if (!isGroup) return await sock.sendMessage(from, { text: "❌ This command can only be used in groups!" }, { quoted: msg });
-
-                const groupMetadata = await sock.groupMetadata(from);
-                const infoText = 
-`👥 *GROUP INFORMATION*
-
-📌 *Name:* ${groupMetadata.subject}
-🆔 *ID:* ${groupMetadata.id}
-👤 *Owner:* @${groupMetadata.owner ? groupMetadata.owner.split("@")[0] : "Unknown"}
-👥 *Members:* ${groupMetadata.participants.length}
-📅 *Created:* ${new Date(groupMetadata.creation * 1000).toLocaleDateString()}`;
-
-                await sock.sendMessage(from, { 
-                    text: infoText,
-                    mentions: groupMetadata.owner ? [groupMetadata.owner] : []
-                }, { quoted: msg });
-                break;
-            }
-
-            default:
-                break;
+        try {
+            console.log(`📩 [${from}] Executed: ${prefix}${cmdName}`);
+            await command.execute(sock, msg, from, args, downloadContentFromMessage);
+        } catch (err) {
+            console.error(`Error executing ${cmdName}:`, err);
+            await sock.sendMessage(from, { text: "❌ An error occurred while executing that command." }, { quoted: msg });
         }
     });
 }
