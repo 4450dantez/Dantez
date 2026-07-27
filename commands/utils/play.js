@@ -32,11 +32,11 @@ module.exports = {
             const infoText = `🎵 *SONG FOUND*\n\n📌 *Title:* ${video.title}\n⏱️ *Duration:* ${video.timestamp}\n👤 *Channel:* ${video.author.name}\n\n⏳ *Downloading audio, please wait...*`;
             await sock.sendMessage(from, { text: infoText }, { quoted: msg });
 
-            // Temporary output file path
+            // Output path
             const outputPath = path.join(__dirname, `temp_${Date.now()}.mp3`);
 
-            // Download with yt-dlp
-            const ytDlpCmd = `yt-dlp -x --audio-format mp3 -o "${outputPath}" "${video.url}"`;
+            // Execute yt-dlp with explicit mp3 audio conversion
+            const ytDlpCmd = `yt-dlp -f "ba/b" -x --audio-format mp3 --audio-quality 0 -o "${outputPath}" "${video.url}"`;
 
             exec(ytDlpCmd, async (error) => {
                 if (error) {
@@ -46,21 +46,35 @@ module.exports = {
 
                 if (fs.existsSync(outputPath)) {
                     try {
-                        // Send audio using direct file stream instead of raw Buffer
+                        // Send as standard audio using audio/mpeg
                         await sock.sendMessage(
                             from,
                             {
                                 audio: { url: outputPath },
-                                mimetype: "audio/mp4",
+                                mimetype: "audio/mpeg",
                                 ptt: false
                             },
                             { quoted: msg }
                         );
                     } catch (sendErr) {
-                        console.error("Error sending audio to WhatsApp:", sendErr);
-                        await sock.sendMessage(from, { text: "❌ Error uploading audio to WhatsApp." }, { quoted: msg });
+                        console.error("Audio mode failed, trying document fallback...", sendErr);
+                        
+                        // Fallback: Send as document if media server rejects audio
+                        try {
+                            await sock.sendMessage(
+                                from,
+                                {
+                                    document: { url: outputPath },
+                                    mimetype: "audio/mpeg",
+                                    fileName: `${video.title}.mp3`
+                                },
+                                { quoted: msg }
+                            );
+                        } catch (docErr) {
+                            console.error("Document upload failed too:", docErr);
+                            await sock.sendMessage(from, { text: "❌ WhatsApp media servers rejected the file." }, { quoted: msg });
+                        }
                     } finally {
-                        // Clean up temp file
                         if (fs.existsSync(outputPath)) {
                             fs.unlinkSync(outputPath);
                         }
