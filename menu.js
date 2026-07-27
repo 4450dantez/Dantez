@@ -1,4 +1,4 @@
-// menu.js
+	// menu.js
 
 function getMenu(prefix, pushName) {
     return `🤖 *DANTEZ BOT OFFICIAL MENU*
@@ -17,6 +17,7 @@ function getMenu(prefix, pushName) {
 • *${prefix}say*
 • *${prefix}quote*
 • *${prefix}joke*
+• *${prefix}play*
 
 ─── 👥 *GROUP COMMANDS* ───
 • *${prefix}tagall*
