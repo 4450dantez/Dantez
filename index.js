@@ -4,7 +4,6 @@ const {
     useMultiFileAuthState,
     downloadContentFromMessage
 } = require("@whiskeysockets/baileys");
-
 const P = require("pino");
 const qrcode = require("qrcode-terminal");
 const readline = require("readline");
