@@ -1,11 +1,5 @@
 // menu.js
 
-/**
- * Returns the formatted menu text for Dantez Bot.
- * @param {string} prefix - The bot's command prefix (e.g., ".")
- * @param {string} pushName - The user's name or number
- * @returns {string} - Formatted menu string
- */
 function getMenu(prefix, pushName) {
     return `🤖 *DANTEZ BOT OFFICIAL MENU*
 
@@ -22,6 +16,7 @@ function getMenu(prefix, pushName) {
 • *${prefix}sticker* - Convert reply/caption image to sticker
 • *${prefix}say <text>* - Make the bot repeat your text
 • *${prefix}quote* - Get a random inspirational quote
+• *${prefix}joke* - Get a random funny joke
 
 ─── 👥 *GROUP COMMANDS* ───
 • *${prefix}tagall* - Mention all group members
@@ -31,4 +26,3 @@ function getMenu(prefix, pushName) {
 }
 
 module.exports = { getMenu };
-
