@@ -10,7 +10,7 @@ const {
 const P = require("pino");
 const qrcode = require("qrcode-terminal");
 const readline = require("readline");
-logger: P({ level: "debug" }),
+const logger: P({ level: "debug" }),
 const fs = require("fs");
 const path = require("path");
 
