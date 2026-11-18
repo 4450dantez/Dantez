@@ -2,12 +2,15 @@ const {
     default: makeWASocket,
     DisconnectReason,
     useMultiFileAuthState,
+    fetchLatestBaileysVersion,
+    Browsers,
     downloadContentFromMessage
 } = require("@whiskeysockets/baileys");
 
 const P = require("pino");
 const qrcode = require("qrcode-terminal");
 const readline = require("readline");
+logger: P({ level: "debug" }),
 const fs = require("fs");
 const path = require("path");
 
@@ -54,18 +57,24 @@ function askQuestion(query) {
 
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState("./auth_info");
+    
+    // Fetch latest WhatsApp Web Version to avoid 405 error
+    const { version, isLatest } = await fetchLatestBaileysVersion();
+    console.log(`ℹ️ Using WA Web Version: v${version.join(".")}` + (isLatest ? " (Latest)" : ""));
 
     const sock = makeWASocket({
+        version,
         auth: state,
         logger: P({ level: "silent" }),
-        printQRInTerminal: false
+        printQRInTerminal: false,
+        browser: Browsers.ubuntu("Chrome")
     });
 
     sock.ev.on("creds.update", saveCreds);
 
     if (!sock.authState.creds.registered) {
         const inputPhone = await askQuestion(
-            "📱 Enter phone number for Pairing Code (e.g., 254768586061) or press Enter to use QR Code: "
+            "\n📱 Enter phone number for Pairing Code (e.g., 254768586061) or press Enter to use QR Code: "
         );
 
         if (inputPhone) {
@@ -99,7 +108,7 @@ async function startBot() {
             const statusCode = lastDisconnect?.error?.output?.statusCode;
             const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
-            console.log(`❌ Connection closed (StatusCode: ${statusCode}).`);
+            console.log("Disconnect details:", lastDisconnect?.error););
 
             if (shouldReconnect) {
                 console.log("♻ Reconnecting...");
@@ -118,12 +127,11 @@ async function startBot() {
 
             const from = msg.key.remoteJid;
 
-            // 🟢 AUTO VIEW & AUTO LIKE STATUS
+            // AUTO VIEW & AUTO LIKE STATUS
             if (from === "status@broadcast") {
                 const participant = msg.key.participant || msg.participant;
                 if (!participant) continue;
 
-                // 1. Auto View Status
                 if (CONFIG.autoViewStatus) {
                     try {
                         await sock.readMessages([
@@ -139,7 +147,6 @@ async function startBot() {
                     }
                 }
 
-                // 2. Auto Like Status
                 if (CONFIG.autoLikeStatus) {
                     try {
                         await sock.sendMessage(
